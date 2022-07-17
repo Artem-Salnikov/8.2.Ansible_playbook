@@ -1,4 +1,72 @@
 ---
+- name: install python3 on centos
+  become: true
+  hosts: clickhouse
+  gather_facts: false
+  tasks:
+  - name: check install python3
+    shell: set -o pipefail | python3 --version | awk '{print $1}'
+    changed_when: false
+    register: python3
+  - name: install python3
+    raw: yum install -y python3
+    when: python3.stdout != "Python"
+
+- name: Install vector
+  hosts: clickhouse
+  tasks:
+    - name: Get vector distrib
+      ansible.builtin.get_url:
+        url: https://packages.timber.io/vector/{{ vector_version }}/vector-{{ vector_version }}-x86_64-unknown-linux-gnu.tar.gz
+        dest: ./vector-{{ vector_version }}-x86_64-unknown-linux-gnu.tar.gz
+
+    - name: create dir for vector
+      ansible.builtin.file:
+        path: $HOME/vector-{{ vector_version }}-x86_64-unknown-linux-gnu
+        state: directory
+
+    - name: Unarchive archive
+      ansible.builtin.unarchive:
+        src: $HOME/vector-{{ vector_version }}-x86_64-unknown-linux-gnu.tar.gz
+        dest: $HOME/vector-{{ vector_version }}-x86_64-unknown-linux-gnu
+        extra_opts: [--strip-components=2]
+        remote_src: yes
+
+    - name: check ~/.bashrc
+      command: grep "vector" ~/.bashrc
+      register: checkmypath
+      check_mode: no
+      ignore_errors: yes
+      changed_when: no
+
+    - name: move vector in $PATH, if it doesnt exist already
+      shell: echo "export PATH=\"$HOME/vector-{{ vector_version }}-x86_64-unknown-linux-gnu/bin:\$PATH\"" >> ~/.bashrc
+      when: checkmypath.rc == 1
+
+    - name: Reboot server for aplly PATH
+      become: true
+      ansible.builtin.reboot:
+        reboot_timeout: 600
+      when: checkmypath.rc == 1
+
+    - name: Create a directory for vector config
+      become: true
+      ansible.builtin.file:
+        path: /etc/vector
+        state: directory
+    - name: Copy vector config 1
+      ansible.builtin.copy:
+        src: $HOME/vector-{{ vector_version }}-x86_64-unknown-linux-gnu/config/vector.toml
+        dest: /tmp/vector.toml
+        remote_src: yes
+
+    - name: Copy vector config 2
+      become: true
+      ansible.builtin.copy:
+        src: /tmp/vector.toml
+        dest: /etc/vector/vector.toml
+        remote_src: yes
+
 - name: Install Clickhouse
   hosts: clickhouse
   handlers:
@@ -19,6 +87,7 @@
           ansible.builtin.get_url:
             url: "https://packages.clickhouse.com/rpm/stable/clickhouse-common-static-{{ clickhouse_version }}.x86_64.rpm"
             dest: "./clickhouse-common-static-{{ clickhouse_version }}.rpm"
+
     - name: Install clickhouse packages
       become: true
       ansible.builtin.yum:
@@ -26,7 +95,11 @@
           - clickhouse-common-static-{{ clickhouse_version }}.rpm
           - clickhouse-client-{{ clickhouse_version }}.rpm
           - clickhouse-server-{{ clickhouse_version }}.rpm
+        disable_gpg_check: yes
       notify: Start clickhouse service
+    - name: force execution handlers (Start clickhouse service)
+      ansible.builtin.meta: flush_handlers
+
     - name: Create database
       ansible.builtin.command: "clickhouse-client -q 'create database logs;'"
       register: create_db
