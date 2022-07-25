@@ -1,15 +1,16 @@
 # Ansible Playbook
-Данный playbook скачивает и устанавливает ClickHouse, Vector.  
+Данный playbook разворачивает стек из Clickhouse, Lighthouse (на основе nginx) и Vector. Стек позволяет собирать логи и метрики с помощью Vector, отправлять их в БД (Clickhouse), Lighthouse выполняет роль графического интерфейса для Clickhouse.  
+
 Работа гарантируется только на Centos Stream 8.
 
 ### Задачи playbook:
-1. Проверить наличие пакета python3, в случае отсутвия произвести установку из репозитория
-2. Скачать Vector в виде архива, создать необходимые окружения, установить Vector
-3. Скачать ClickHouse(client and server) в виде RPM пакета, установить ClickHouse, создать БД в ClickHouse
+Развернуть стек на трех нодах согласно схеме ниже. Vector собирает демо-логи и отправляет их в БД Clickhouse, Lighthouse позволяет работать с БД в графическом интерфейсе.  
+
+![Netdata](scheme.png) 
 
 ### Параметры playbook:  
-IP-адрес целевого сервера задается в inventory/prod.yml
+IP-адреса целевых серверов задаются в inventory/prod.yml
 
-В файле group_vars/clickhouse/vars.yml можно задать следующие параметры:  
+В group_vars можно задать следующие параметры:  
 * vector_version - версия Vector
 * clickhouse_version - версия ClickHouse
