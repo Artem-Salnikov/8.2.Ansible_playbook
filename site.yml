@@ -1,70 +1,42 @@
 ---
 - name: install python3 on centos
   become: true
-  hosts: clickhouse
+  hosts: all
   gather_facts: false
   tasks:
-  - name: check install python3
-    shell: set -o pipefail | python3 --version | awk '{print $1}'
-    changed_when: false
-    register: python3
   - name: install python3
     raw: yum install -y python3
-    when: python3.stdout != "Python"
 
-- name: Install vector
-  hosts: clickhouse
+- name: Install ligthouse and nginx
+  hosts: lighthouse
   tasks:
-    - name: Get vector distrib
-      ansible.builtin.get_url:
-        url: https://packages.timber.io/vector/{{ vector_version }}/vector-{{ vector_version }}-x86_64-unknown-linux-gnu.tar.gz
-        dest: ./vector-{{ vector_version }}-x86_64-unknown-linux-gnu.tar.gz
-
-    - name: create dir for vector
-      ansible.builtin.file:
-        path: $HOME/vector-{{ vector_version }}-x86_64-unknown-linux-gnu
-        state: directory
-
-    - name: Unarchive archive
-      ansible.builtin.unarchive:
-        src: $HOME/vector-{{ vector_version }}-x86_64-unknown-linux-gnu.tar.gz
-        dest: $HOME/vector-{{ vector_version }}-x86_64-unknown-linux-gnu
-        extra_opts: [--strip-components=2]
-        remote_src: yes
-
-    - name: check ~/.bashrc
-      command: grep "vector" ~/.bashrc
-      register: checkmypath
-      check_mode: no
-      ignore_errors: yes
-      changed_when: no
-
-    - name: move vector in $PATH, if it doesnt exist already
-      shell: echo "export PATH=\"$HOME/vector-{{ vector_version }}-x86_64-unknown-linux-gnu/bin:\$PATH\"" >> ~/.bashrc
-      when: checkmypath.rc == 1
-
-    - name: Reboot server for aplly PATH
+    - name: Install nginx
       become: true
-      ansible.builtin.reboot:
-        reboot_timeout: 600
-      when: checkmypath.rc == 1
-
-    - name: Create a directory for vector config
+      ansible.builtin.yum:
+        name: nginx
+        state: latest
+    - name: Enable service nginx
       become: true
-      ansible.builtin.file:
-        path: /etc/vector
-        state: directory
-    - name: Copy vector config 1
-      ansible.builtin.copy:
-        src: $HOME/vector-{{ vector_version }}-x86_64-unknown-linux-gnu/config/vector.toml
-        dest: /tmp/vector.toml
-        remote_src: yes
-
-    - name: Copy vector config 2
+      ansible.builtin.service:
+        name: nginx
+        state: restarted
+        enabled: yes
+    - name: Install git
+      become: true
+      ansible.builtin.yum:
+        name: git
+        state: latest
+    - name: Clone lighthouse from github
+      ansible.builtin.git:
+        repo: https://github.com/VKCOM/lighthouse.git
+        dest: /tmp/lighthouse
+        single_branch: yes
+        version: master
+    - name: Copy lighthouse to /usr/share/nginx/html/
       become: true
       ansible.builtin.copy:
-        src: /tmp/vector.toml
-        dest: /etc/vector/vector.toml
+        src: /tmp/lighthouse/
+        dest: /usr/share/nginx/html
         remote_src: yes
 
 - name: Install Clickhouse
@@ -75,6 +47,7 @@
       ansible.builtin.service:
         name: clickhouse-server
         state: restarted
+        enabled: yes
   tasks:
     - block:
         - name: Get clickhouse distrib
@@ -97,6 +70,16 @@
           - clickhouse-server-{{ clickhouse_version }}.rpm
         disable_gpg_check: yes
       notify: Start clickhouse service
+
+    - name: change config in /etc/clickhouse-server/config.xml
+      become: true
+      ansible.builtin.template:
+        src: config.xml.j2
+        dest: /etc/clickhouse-server/config.xml
+        owner: clickhouse
+        group: clickhouse
+        mode: '0400'
+
     - name: force execution handlers (Start clickhouse service)
       ansible.builtin.meta: flush_handlers
 
@@ -105,3 +88,50 @@
       register: create_db
       failed_when: create_db.rc != 0 and create_db.rc !=82
       changed_when: create_db.rc == 0
+
+    - name: Create table
+      ansible.builtin.command: "clickhouse-client -q 'CREATE TABLE logs.demo (
+                                message String,
+                                source_type String,
+                                timestamp String
+                              )
+                              ENGINE = MergeTree()
+                              ORDER BY tuple()'"
+      register: create_tbl
+      failed_when: create_tbl.rc != 0 and create_tbl.rc !=57
+      changed_when: create_tbl.rc == 0
+
+- name: Install vector
+  hosts: vector
+  tasks:
+    - name: Get vector distrib
+      ansible.builtin.get_url:
+        url: https://packages.timber.io/vector/{{ vector_version }}/vector-{{ vector_version }}-1.x86_64.rpm
+        dest: ./vector-{{ vector_version }}-1.x86_64.rpm
+    - name: Install vector packages
+      become: true
+      ansible.builtin.yum:
+        name: vector-{{ vector_version }}-1.x86_64.rpm
+        disable_gpg_check: yes
+
+    - name: Find clickhouse public ip
+      uri:
+        url: http://ifconfig.me/ip
+        return_content: yes
+      delegate_to: clickhouse-01
+      register: clickhouse_ip
+
+    - name: change config in /etc/vector/vector.toml
+      become: true
+      ansible.builtin.template:
+        src: vector.toml.j2
+        dest: /etc/vector/vector.toml
+        owner: root
+        group: root
+
+    - name: Enable service vector
+      become: true
+      ansible.builtin.service:
+        name: vector
+        state: restarted
+        enabled: yes
