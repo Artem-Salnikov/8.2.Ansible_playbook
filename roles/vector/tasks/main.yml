@@ -1,0 +1,9 @@
+---
+- name: add download tasks
+  ansible.builtin.include_tasks: download/{{ ansible_pkg_mgr }}.yml
+
+- name: add install tasks
+  ansible.builtin.include_tasks: install/{{ ansible_pkg_mgr }}.yml
+
+- name: add configure tasks
+  ansible.builtin.include_tasks: configure.yml

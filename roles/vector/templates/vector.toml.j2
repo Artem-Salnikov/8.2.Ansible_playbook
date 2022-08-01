@@ -1,0 +1,13 @@
+[sources.demo_logs]
+type = "demo_logs"
+format = "shuffle"
+interval = 1
+lines = [ "Line 1" ]
+
+[sinks.cl]
+type = "clickhouse"
+inputs = [ "demo_logs" ]
+database = "logs"
+endpoint = "http://{{ clickhouse_ip.content }}:8123"
+table = "demo"
+compression = "gzip"

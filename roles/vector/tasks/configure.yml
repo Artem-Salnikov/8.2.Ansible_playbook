@@ -1,0 +1,22 @@
+---
+- name: Find clickhouse public ip
+  uri:
+    url: http://ifconfig.me/ip
+    return_content: yes
+  delegate_to: clickhouse-01
+  register: clickhouse_ip
+
+- name: change config in /etc/vector/vector.toml
+  become: true
+  ansible.builtin.template:
+    src: vector.toml.j2
+    dest: /etc/vector/vector.toml
+    owner: root
+    group: root
+
+- name: Enable service vector
+  become: true
+  ansible.builtin.service:
+    name: vector
+    state: restarted
+    enabled: yes

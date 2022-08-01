@@ -1,0 +1,19 @@
+---
+- name: Install nginx
+  become: true
+  ansible.builtin.dnf:
+    name: nginx
+    state: latest
+
+- name: Install git
+  become: true
+  ansible.builtin.dnf:
+    name: git
+    state: latest
+    
+- name: Clone lighthouse from github
+  ansible.builtin.git:
+    repo: https://github.com/VKCOM/lighthouse.git
+    dest: /tmp/lighthouse
+    single_branch: yes
+    version: master

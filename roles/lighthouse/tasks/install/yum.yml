@@ -1,0 +1,27 @@
+---
+- name: Add repository
+  become: true
+  ansible.builtin.yum_repository:
+    name: epel
+    description: EPEL YUM repo
+    baseurl: https://download.fedoraproject.org/pub/epel/$releasever/$basearch/
+
+- name: Install nginx
+  become: true
+  ansible.builtin.yum:
+    name: nginx
+    state: latest
+    disable_gpg_check: yes
+
+- name: Install git
+  become: true
+  ansible.builtin.yum:
+    name: git
+    state: latest
+    
+- name: Clone lighthouse from github
+  ansible.builtin.git:
+    repo: https://github.com/VKCOM/lighthouse.git
+    dest: /tmp/lighthouse
+    single_branch: yes
+    version: master

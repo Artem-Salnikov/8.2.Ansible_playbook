@@ -1,0 +1,23 @@
+---
+- name: Copy lighthouse to /usr/share/nginx/html/
+  become: true
+  ansible.builtin.copy:
+    src: /tmp/lighthouse/
+    dest: /usr/share/nginx/html
+    remote_src: yes
+  when: ansible_os_family == "RedHat"
+
+- name: Copy lighthouse to /var/www/html/
+  become: true
+  ansible.builtin.copy:
+    src: /tmp/lighthouse/
+    dest: /var/www/html
+    remote_src: yes
+  when: ansible_os_family == "Debian"
+
+- name: Enable service nginx
+  become: true
+  ansible.builtin.service:
+    name: nginx
+    state: restarted
+    enabled: yes       

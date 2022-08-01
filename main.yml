@@ -1,0 +1,45 @@
+---
+- name: install python3
+  become: true
+  hosts: all
+  gather_facts: false
+  tasks:
+    - block:
+        - name: install python3
+          raw: yum install -y python3
+      rescue: 
+        - name: install python3
+          raw: apt install -y python3
+
+- name: Install clickhouse
+  hosts: clickhouse
+  roles: 
+    - clickhouse
+  tasks:
+    - name: Create database
+      ansible.builtin.command: "clickhouse-client -q 'create database logs;'"
+      register: create_db
+      failed_when: create_db.rc != 0 and create_db.rc !=82
+      changed_when: create_db.rc == 0
+
+    - name: Create table
+      ansible.builtin.command: "clickhouse-client -q 'CREATE TABLE logs.demo (
+                                message String,
+                                source_type String,
+                                timestamp String
+                              )
+                              ENGINE = MergeTree()
+                              ORDER BY tuple()'"
+      register: create_tbl
+      failed_when: create_tbl.rc != 0 and create_tbl.rc !=57
+      changed_when: create_tbl.rc == 0
+
+- name: Install lighthouse
+  hosts: lighthouse
+  roles:
+    - lighthouse
+
+- name: Install vector
+  hosts: vector
+  roles:
+    - vector
