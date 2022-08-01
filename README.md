@@ -1,7 +1,10 @@
 # Ansible Playbook
 Данный playbook разворачивает стек из Clickhouse, Lighthouse (на основе nginx) и Vector. Стек позволяет собирать логи и метрики с помощью Vector, отправлять их в БД (Clickhouse), Lighthouse выполняет роль графического интерфейса для Clickhouse.  
 
-Работа гарантируется только на Centos Stream 8.
+Поддерживаются работа на ОС:  
+* Red Hat  
+* Debian  
+* Ubuntu  
 
 ### Задачи playbook:
 Развернуть стек на трех нодах согласно схеме ниже. Vector собирает демо-логи и отправляет их в БД Clickhouse, Lighthouse позволяет работать с БД в графическом интерфейсе.  
